@@ -154,10 +154,14 @@ class Event():
     def __init__(self, d:dict):
         self.dur = d.get("dur", 0)
         self.name = d.get("name")
+        self.prop = d.get("prop")
         self.descend = d.get("descend", True)
-        self.maxrep = d.get("maxrep", True)
+        self.maxrep = d.get("maxrep", -1)
+
     def __repr__(self):
         disp=f"{self.name}={self.dur}"
+        if self.prop:
+            disp=f"{self.prop}*{disp}"
         return disp
 
 
@@ -170,7 +174,7 @@ def build_tree(input_list:list, roots:list=None, append=False):
                    ->C->D (returns [D,D])
     """
     if not roots:
-        roots = [Node(Event({"name":"root"}))]
+        roots = [Node(Event({"name":"root", "prop": 1}))]
 
     leaves = []
     for n in input_list:
@@ -187,7 +191,37 @@ def build_tree(input_list:list, roots:list=None, append=False):
         print(f"# leaves: {len(leaves)} @ {n}")
     return leaves
 
-tree = task_dsl.parse("100/10x test")
+def set_children_proption(node):
+    """update node's children 'prop'
+    the proportion of trials with this sequence. defaults to symetic"""
+    n = len(node.children)
+    existing = [x.name.prop for x in node.children if x.name.prop is not None]
+    n_remain = n - len(existing)
+    if(n_remain<=0):
+        return
+    start = 1 - sum(existing)
+    eq_dist = start / n_remain
+    for n in node.children:
+        if n.name.prop is None:
+            n.name.prop = eq_dist
+    # TODO: assert value is close to 1
+
+
+def clean_tree(node):
+    "set proprotions for entire tree"
+    set_children_proption(node)
+    for n in node.children:
+        clean_tree(n)
+
+def find_leaves(node):
+    "inefficent. use with shake. find catch leaves"
+    if not node.children:
+        return node
+    return [find_leaves(n) for n in node.children]
+            
+        
+
+example = task_dsl.parse("100/10x test")
 task_dsl.parse("100/10x test=2.5")
 task_dsl.parse("100/10x test=2.5<2>")
 task_dsl.parse("100/10x .3*test=2.5<2>")
@@ -203,5 +237,32 @@ o = ep.visit(tree)
 # ep.total_trials
 x = ep.visit(task_dsl.parse("100/10x A=1.5,D,{.15*B=.5,C=.3,$},D"))
 print(shake(x))
+
 t = build_tree(shake(x))
-print(RenderTree(t[0].root))
+root = t[0].root
+print(RenderTree(root))
+
+real_leaves = shake(find_leaves(root))
+clean_tree(root)
+print(RenderTree(root))
+print(real_leaves)
+
+def calc_leaf(leaf):
+    prop = leaf.name.prop
+    dur  = leaf.name.dur
+    seq = [leaf.name]
+    while leaf.parent:
+      n = leaf.parent.name
+      prop *= n.prop
+      dur  += n.dur
+      seq = [n, *seq]
+      leaf = leaf.parent
+    return {"prop":prop,"dur":dur,"seq":seq}
+
+res = [calc_leaf(l) for l in real_leaves]
+print(res)
+res = [{**x, "n": int(x['prop']*ep.total_trials)} for x in res]
+trials_needed = ep.total_trials - int(sum([x.get("n") for x in res]))
+# todo: warning. add to random
+
+# todo. repeat each seq "n" times. intersperce with itis. generate 1d files
