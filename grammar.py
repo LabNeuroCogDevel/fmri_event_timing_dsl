@@ -182,9 +182,8 @@ def build_tree(input_list:list, roots:list=None, append=False):
                 if p.name.descend:
                     leaves.append(Node(Event(n), parent=p))
         else:
-            
-            leaves.append(Node(Event(n), parent=p))
-            roots = 
+            roots = [Node(Event(n), parent=p) for p in roots if p.name.descend]
+            leaves = roots
         print(f"# leaves: {len(leaves)} @ {n}")
     return leaves
 
