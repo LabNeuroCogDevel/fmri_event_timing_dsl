@@ -22,6 +22,7 @@ need additional node max/min to when specified for repeats
 
 from parsimonious.grammar import Grammar
 from parsimonious.nodes import NodeVisitor
+from anytree import Node, RenderTree
 task_dsl = Grammar(
     """
     main  = info anyevent+
@@ -52,6 +53,7 @@ task_dsl = Grammar(
 
 class EventMaker(NodeVisitor):
     def visit_main(self, node, children):
+        "final collection at 'main' after through all children"
         out = []
         for c in children:
             if not c:
@@ -68,7 +70,7 @@ class EventMaker(NodeVisitor):
         return None
 
     def visit_event(self, node, children):
-        "reps? prop? name dur? maxrep? sep?"
+        "main node. collects reps? prop? name dur? maxrep? sep?"
         event = {"dur": 1, "descend": True}
         for c in children:
             if not c:
@@ -99,8 +101,9 @@ class EventMaker(NodeVisitor):
         return event
     
     def visit_catch_end(self, node, children):
+        "when grammar sees '$', the tree should not be followed down"
         assert not children
-        return {'name': "END", "dur": 0, "descend": False}
+        return {'name': "CATCH", "dur": 0, "descend": False}
 
     def visit_dur(self, node, children):
         # TODO: duration range
@@ -146,7 +149,44 @@ def shake(l):
         if len(l) == 1:
             l = l[0]
     return l
-    
+
+class Event():
+    def __init__(self, d:dict):
+        self.dur = d.get("dur", 0)
+        self.name = d.get("name")
+        self.descend = d.get("descend", True)
+        self.maxrep = d.get("maxrep", True)
+    def __repr__(self):
+        disp=f"{self.name}={self.dur}"
+        return disp
+
+
+
+def build_tree(input_list:list, roots:list=None, append=False):
+    """
+    progressively add leaves to a tree. returns the final leaf/leaves
+    [A,B,C] = A->B->C     (returns [C])
+    [A,[B,C],D] = A->B->D
+                   ->C->D (returns [D,D])
+    """
+    if not roots:
+        roots = [Node(Event({"name":"root"}))]
+
+    leaves = []
+    for n in input_list:
+        if type(n) == list:
+            print(f"#** {n} is list. recurse")
+            roots = build_tree(n, roots, append=True)
+        elif append:
+            for p in roots:
+                if p.name.descend:
+                    leaves.append(Node(Event(n), parent=p))
+        else:
+            
+            leaves.append(Node(Event(n), parent=p))
+            roots = 
+        print(f"# leaves: {len(leaves)} @ {n}")
+    return leaves
 
 tree = task_dsl.parse("100/10x test")
 task_dsl.parse("100/10x test=2.5")
@@ -164,3 +204,5 @@ o = ep.visit(tree)
 # ep.total_trials
 x = ep.visit(task_dsl.parse("100/10x A=1.5,D,{.15*B=.5,C=.3,$},D"))
 print(shake(x))
+t = build_tree(shake(x))
+print(RenderTree(t[0].root))
