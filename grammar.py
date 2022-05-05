@@ -12,7 +12,7 @@ descend tree to build a list of random events
   <#>      max repeats
   ,        add next in sequence
   ;=#.#    variable iti w/stepsize; end of root node
-  
+
 thoughts on duration
   =#.#...#.#  = variable duration
   =#...#(exp) = var exponential
@@ -23,6 +23,7 @@ need additional node max/min to when specified for repeats
 from parsimonious.grammar import Grammar
 from parsimonious.nodes import NodeVisitor
 from anytree import Node, RenderTree
+from random import shuffle
 task_dsl = Grammar(
     """
     main  = info anyevent+
@@ -50,6 +51,7 @@ task_dsl = Grammar(
     num         = ~"[0-9]+"
     """
 )
+
 
 class EventMaker(NodeVisitor):
     def visit_main(self, node, children):
@@ -99,7 +101,7 @@ class EventMaker(NodeVisitor):
                 raise Exception(f"unknown event attribute '{key}': '{c}'")
             event[key] = value
         return event
-    
+
     def visit_catch_end(self, node, children):
         "when grammar sees '$', the tree should not be followed down"
         assert not children
@@ -114,7 +116,8 @@ class EventMaker(NodeVisitor):
     def visit_reps(self, node, children):
         reps = children[1]
         # child[1] is 'x' but now None
-        return {'reps': rep}
+        return {'reps': reps}
+
     def visit_prop(self, node, children):
         # child[1] was '*' but now None
         return {'prop': children[0]}
@@ -128,18 +131,21 @@ class EventMaker(NodeVisitor):
         return int(node.text)
 
     def visit_sep(self, node, children): return None
+
     def visit_maxsep(self, node, children):
         assert not children
         return int(node.text)
+
     def generic_visit(self, node, children):
         # remove literals used in grammar
-        if node.text in ["{", "}", ">","<", '=', '*']:
+        if node.text in ["{", "}", ">", "<", '=', '*']:
             return None
         # remove empty optionals
         if not children and not node.text and not node.expr_name:
             return None
         # things we haven't identified yet (anyevent, in_children)
         return children or node
+
 
 def shake(l):
     "remove None, empty lists, and raise nested single item lists"
@@ -150,8 +156,9 @@ def shake(l):
             l = l[0]
     return l
 
+
 class Event():
-    def __init__(self, d:dict):
+    def __init__(self, d: dict):
         self.dur = d.get("dur", 0)
         self.name = d.get("name")
         self.prop = d.get("prop")
@@ -159,14 +166,13 @@ class Event():
         self.maxrep = d.get("maxrep", -1)
 
     def __repr__(self):
-        disp=f"{self.name}={self.dur}"
+        disp = f"{self.name}={self.dur}"
         if self.prop:
-            disp=f"{self.prop}*{disp}"
+            disp = f"{self.prop}*{disp}"
         return disp
 
 
-
-def build_tree(input_list:list, roots:list=None, append=False):
+def build_tree(input_list: list, roots: list = None, append=False):
     """
     progressively add leaves to a tree. returns the final leaf/leaves
     [A,B,C] = A->B->C     (returns [C])
@@ -174,7 +180,7 @@ def build_tree(input_list:list, roots:list=None, append=False):
                    ->C->D (returns [D,D])
     """
     if not roots:
-        roots = [Node(Event({"name":"root", "prop": 1}))]
+        roots = [Node(Event({"name": "root", "prop": 1}))]
 
     leaves = []
     for n in input_list:
@@ -191,13 +197,14 @@ def build_tree(input_list:list, roots:list=None, append=False):
         print(f"# leaves: {len(leaves)} @ {n}")
     return leaves
 
+
 def set_children_proption(node):
     """update node's children 'prop'
     the proportion of trials with this sequence. defaults to symetic"""
     n = len(node.children)
     existing = [x.name.prop for x in node.children if x.name.prop is not None]
     n_remain = n - len(existing)
-    if(n_remain<=0):
+    if(n_remain <= 0):
         return
     start = 1 - sum(existing)
     eq_dist = start / n_remain
@@ -213,13 +220,13 @@ def clean_tree(node):
     for n in node.children:
         clean_tree(n)
 
+
 def find_leaves(node):
     "inefficent. use with shake. find catch leaves"
     if not node.children:
         return node
     return [find_leaves(n) for n in node.children]
-            
-        
+
 
 example = task_dsl.parse("100/10x test")
 task_dsl.parse("100/10x test=2.5")
@@ -232,7 +239,7 @@ task_dsl.parse("100/10x {one,two},three")
 task_dsl.parse("100/10x A=1.5,D,{.3*B=.5,C=.3,$},D")
 
 ep = EventMaker()
-o = ep.visit(tree)
+o = ep.visit(example)
 # ep.total_duration
 # ep.total_trials
 x = ep.visit(task_dsl.parse("100/10x A=1.5,D,{.15*B=.5,C=.3,$},D"))
@@ -247,22 +254,55 @@ clean_tree(root)
 print(RenderTree(root))
 print(real_leaves)
 
+
 def calc_leaf(leaf):
-    prop = leaf.name.prop
-    dur  = leaf.name.dur
-    seq = [leaf.name]
-    while leaf.parent:
-      n = leaf.parent.name
+    """
+    summary metrics for leaves (final event sequences)
+    into event sequence instead of tree
+    remove no-duration events(root, catch)
+    output dict: prop (final proportion of total trials)
+                 dur  (total duration of event sequence)
+                 seq  (start-finish list of Events)
+    """
+    prop = 1  # geometric  product
+    dur  = 0  # arithmetic sum
+    seq = []
+    while leaf:
+      n = leaf.name # actually type Event
+      leaf = leaf.parent
+      if n.dur == 0:
+          continue
       prop *= n.prop
       dur  += n.dur
       seq = [n, *seq]
-      leaf = leaf.parent
     return {"prop":prop,"dur":dur,"seq":seq}
 
 res = [calc_leaf(l) for l in real_leaves]
 print(res)
 res = [{**x, "n": int(x['prop']*ep.total_trials)} for x in res]
-trials_needed = ep.total_trials - int(sum([x.get("n") for x in res]))
-# todo: warning. add to random
+trials_needed = ep.total_trials - int(sum([x.get("n",0) for x in res]))
+# todo: warning if need!=0. add additional trials to random leaves
+for i in range(trials_needed):
+    # trials_needed shouldn't excede len(res).
+    # only need any added b/c rounding issues.
+    # but just in case, wrap around
+    # TODO: instead we should pick randomly
+    ii = i%len(res)
+    res[ii]["n"] += 1
+
 
 # todo. repeat each seq "n" times. intersperce with itis. generate 1d files
+def uncount(res):
+    out = []
+    for seq in res:
+        for i in range(seq["n"]):
+            out.append({k: seq[k] for k in ["seq","dur"]})
+    return out
+
+
+def event_list(res, info):
+    events = uncount(res)
+    shuffle(events)
+    _time = sum([x["dur"] for x in events])
+    # todo are events by reference or copy
+    #  can we track trial to make sure we dont repeat?
