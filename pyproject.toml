@@ -1,0 +1,24 @@
+[project]
+name = "fmri-timing"
+description = "Generate experiment design timing for event related functional magnetic resonance imaging using a mini-domain specific language with exponentially distributed inter-trial interval and optional catch trials"
+license = {text = "GPL-3.0-or-later"}
+readme = "readme.md"
+authors = [
+    { name = "Will Foran", email = "willforan+py@gmail.com" }
+]
+dependencies = ["anytree", "parsimonious"]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "bump2version"
+]
+[build-system]
+requires = ["setuptools >= 40.6.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.entry-points.console_scripts]
+fmri_timing = "fmri_timing.__main__:main"
+
