@@ -7,10 +7,10 @@ https://afni.nimh.nih.gov/afni/community/board/read.php?1,42880,42890
 
 from anytree import Node
 from random import shuffle
-from event import Event
-from event_maker import EventMaker, task_dsl
-from iti import geo_dist
-from deconvolve import deconvolve
+from .event import Event
+from .event_maker import EventMaker, task_dsl
+from .iti import geo_dist
+from .deconvolve import deconvolve
 
 def shake(l):
     "remove None, empty lists, and raise nested single item lists"
