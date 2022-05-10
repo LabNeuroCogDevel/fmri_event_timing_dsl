@@ -5,6 +5,8 @@ Evaluate with AFNI's 3dDeconvolve.
 
 ## See Also
  * [`optseq2`](https://surfer.nmr.mgh.harvard.edu/fswiki/optseq2)
+ * [`make_random_timing.py`](https://afni.nimh.nih.gov/pub/dist/doc/program_help/make_random_timing.py.html)
+ * [`RSFgen`](https://afni.nimh.nih.gov/pub/dist/doc/program_help/RSFgen.html) and 
  * [`3dDeconvolve -nodata`](https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dDeconvolve.html)
 
 ### Optseq
